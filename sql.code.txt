@@ -1,0 +1,188 @@
+/* #1 Inspect a snapshot (10 rows) of the survey table, which has the style quiz responses */
+SELECT *
+FROM survey
+LIMIT 10;
+ 
+ /* #1a (not required) Examine the possible responses for each quiz question */
+SELECT response, COUNT(response) AS 'Question 1 Response Distb'
+FROM survey
+WHERE question LIKE '1.%'
+GROUP BY 1
+ORDER BY 2 DESC;
+SELECT response, COUNT(response) AS 'Question 2 Response Distb'
+FROM survey
+WHERE question LIKE '2.%'
+GROUP BY 1
+ORDER BY 2 DESC;
+SELECT response, COUNT(response) AS 'Question 3 Response Distb'
+FROM survey
+WHERE question LIKE '3.%'
+GROUP BY 1
+ORDER BY 2 DESC;
+SELECT response, COUNT(response) AS 'Question 4 Response Distb'
+FROM survey
+WHERE question LIKE '4.%'
+GROUP BY 1
+ORDER BY 2 DESC;
+SELECT response, COUNT(response) AS 'Question 5 Response Distb'
+FROM survey
+WHERE question LIKE '5.%'
+GROUP BY 1
+ORDER BY 2 DESC;
+
+
+ /* #2 Create the quiz funnel from the Survey table */
+ SELECT question AS 'Question Number',
+   COUNT(DISTINCT user_id) AS 'Number Completing This Question'
+FROM survey
+GROUP BY 1;
+
+/* #2a   (not required) Establish the number of distinct user_id in each of the four tables */
+SELECT count(DISTINCT user_id)
+FROM survey;
+SELECT count(DISTINCT user_id)
+FROM quiz;
+SELECT count(DISTINCT user_id)
+FROM home_try_on;
+SELECT count(DISTINCT user_id)
+FROM purchase;
+/* NOTE ON ABOVE RESULT: Number of users in SURVEY table does not match number of users in quiz table; there is no user overlap.  */
+
+/* #2b( not required) Left Join quiz and home_try_on tables and filter to find those users who took the quiz but did NOT convert to home try-on.   Then examine the reponses to each quiz question for those in this group */
+WITH quizdrop AS (
+SELECT *
+FROM quiz AS q 
+LEFT JOIN home_try_on as h
+ON q.user_id = h.user_id
+WHERE h.user_id IS NULL)
+SELECT quizdrop.style, COUNT(quizdrop.style)
+FROM quizdrop
+GROUP BY quizdrop.style;
+WITH quizdrop AS (
+SELECT *
+FROM quiz AS q 
+LEFT JOIN home_try_on as h
+ON q.user_id = h.user_id
+WHERE h.user_id IS NULL)
+SELECT quizdrop.fit, COUNT(quizdrop.fit)
+FROM quizdrop
+GROUP BY quizdrop.fit;
+WITH quizdrop AS (
+SELECT *
+FROM quiz AS q 
+LEFT JOIN home_try_on as h
+ON q.user_id = h.user_id
+WHERE h.user_id IS  NULL)
+SELECT quizdrop.shape, COUNT(quizdrop.shape)
+FROM quizdrop
+GROUP BY quizdrop.shape;
+WITH quizdrop AS (
+SELECT *
+FROM quiz AS q 
+LEFT JOIN home_try_on as h
+ON q.user_id = h.user_id
+WHERE h.user_id IS NULL)
+SELECT quizdrop.color, COUNT(quizdrop.color)
+FROM quizdrop
+GROUP BY quizdrop.color;
+
+/* #4 Examine first five rows of quiz, home_try_on, and purchase tables */
+SELECT *
+FROM quiz
+LIMIT 5;
+SELECT * 
+FROM home_try_on
+LIMIT 5;
+SELECT * 
+FROM purchase
+LIMIT 5;
+
+
+/* #5 Left Join quiz, home_try_on, and purchase tables and show each users try_on and purchase status */
+SELECT DISTINCT q.user_id,
+   CASE 
+     WHEN h.user_id IS NOT NULL THEN 'True'
+     ELSE 'False'
+   END AS 'is_home_try_on',
+   h.number_of_pairs,
+  CASE
+    WHEN p.user_id IS NOT NULL THEN 'True'
+    ELSE 'False'
+  END AS 'is_purchase'
+FROM quiz as 'q' 
+LEFT JOIN home_try_on as 'h'
+   ON h.user_id=q.user_id
+LEFT JOIN purchase as 'p'
+   ON p.user_id=q.user_id
+LIMIT 10;
+
+/* # 6 Overall funnel conversion rates */
+WITH funnels AS (
+SELECT DISTINCT q.user_id,
+h.user_id IS NOT NULL AS 'is_home_try_on',
+h.number_of_pairs,
+p.user_id IS NOT NULL AS 'is_purchase'
+FROM quiz as 'q' 
+LEFT JOIN home_try_on as 'h'
+ON h.user_id=q.user_id
+LEFT JOIN purchase as 'p'
+ON p.user_id=q.user_id)
+SELECT COUNT(*) AS 'num quiz', SUM(is_home_try_on) AS 'num_try_on', SUM(is_purchase) AS 'num_purchase',                 1.0 * SUM(is_home_try_on) / COUNT(user_id) AS 'quiz to home conversion', 1.0 * SUM(is_purchase) / SUM(is_home_try_on) AS 'home to purchase conversion'
+FROM funnels;
+
+/* #6a   3 pair  funnel conversion rates */
+WITH funnels3 AS(
+SELECT DISTINCT q.user_id,
+h.user_id IS NOT NULL AS 'is_home_try_on',
+h.number_of_pairs,
+p.user_id IS NOT NULL AS 'is_purchase'
+FROM quiz as 'q' 
+LEFT JOIN home_try_on as 'h'
+ON h.user_id=q.user_id
+LEFT JOIN purchase as 'p'
+ON p.user_id=q.user_id
+WHERE h.number_of_pairs = '3 pairs')
+SELECT SUM(is_home_try_on) AS 'Number with 3 pairs for try on', SUM(is_purchase) AS 'Number that purchased', 1.0 * SUM(is_purchase) / SUM(is_home_try_on) AS '3 pair purchase conversion'
+FROM funnels3;
+
+/* #6b  5 pair  funnel conversion rates */
+WITH funnels5 AS(
+SELECT DISTINCT q.user_id,
+h.user_id IS NOT NULL AS 'is_home_try_on',
+h.number_of_pairs,
+p.user_id IS NOT NULL AS 'is_purchase'
+FROM quiz as 'q' 
+LEFT JOIN home_try_on as 'h'
+ON h.user_id=q.user_id
+LEFT JOIN purchase as 'p'
+ON p.user_id=q.user_id
+WHERE h.number_of_pairs = '5 pairs')
+SELECT SUM(is_home_try_on) AS 'Number with 5 pairs for try on', SUM(is_purchase) AS 'Number that purchased', 1.0 * SUM(is_purchase) / SUM(is_home_try_on) AS '5 pair purchase conversion'
+FROM funnels5;
+/* 6c show purchases ranked by model name*/
+SELECT product_id, model_name, color, COUNT(user_id) AS 'Number Purchased'
+FROM purchase
+GROUP BY product_id
+ORDER BY COUNT(user_id) DESC;
+/* 6d show purchases ranked by color*/
+SELECT color,  COUNT(user_id) AS 'Number Purchased'
+FROM purchase
+GROUP BY color
+ORDER BY COUNT(user_id) DESC;
+/* 6e show purchases ranked  by gender*/
+SELECT style,  COUNT(user_id) AS 'Number Purchased'
+FROM purchase
+GROUP BY style
+ORDER BY COUNT(user_id) DESC;
+/* 6f show purchases ranked by unit price*/
+SELECT price AS 'Unit Price', COUNT(user_id) AS 'Number Purchased'
+FROM purchase
+GROUP BY price
+ORDER BY COUNT(user_id) DESC;
+/*Show each model name and its unit price */
+SELECT DISTINCT(model_name), price
+from purchase;
+/* Show all the men's models and all women's models */
+SELECT DISTINCT(style), model_name
+from purchase
+ORDER BY style, model_name;
